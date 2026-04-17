@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 libc = "0.2.185"
 libloading = "0.9.0"
 serde_json = "1.0"
-luo9_sdk = "0.2.0"
+luo9_sdk = "0.3.0"
 reqwest = { version = "0.13.2", features = ["query"] }
-tokio = "1.51.1"
+tokio = "1.52.1"
 ureq = "3.3.0"
