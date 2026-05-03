@@ -16,23 +16,29 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
-      
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: linux-cargo-
+
       - name: Build release
         run: cargo build --release
-      
+
       - name: Verify build artifacts
         run: |
           echo "Linux build artifacts:"
           ls -la target/release/libplugin_epic.so
           file target/release/libplugin_epic.so
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -46,18 +52,24 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
-      
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: windows-cargo-
+
       - name: Build release
         run: cargo build --release
-      
-      - name: Rename Windows DLL
+
+      - name: Prepare Windows artifacts
         shell: bash
         run: |
           # Windows 构建会生成 libplugin_epic.dll，重命名为 plugin_epic.dll
@@ -65,19 +77,19 @@ jobs:
             mv target/release/libplugin_epic.dll target/release/plugin_epic.dll
             echo "Renamed libplugin_epic.dll to plugin_epic.dll"
           fi
-          
+
           # 检查是否有导入库文件
           if [ -f "target/release/plugin_epic.dll.lib" ]; then
             mv target/release/plugin_epic.dll.lib target/release/plugin_epic.lib
             echo "Renamed plugin_epic.dll.lib to plugin_epic.lib"
           fi
-      
+
       - name: Verify build artifacts
         shell: bash
         run: |
           echo "Windows build artifacts:"
           ls -la target/release/plugin_epic.* || echo "No files found"
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -99,12 +111,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
+
       - name: Display structure
         run: |
           echo "Downloaded artifacts:"
@@ -113,41 +125,41 @@ jobs:
           ls -la artifacts/plugin_epic-linux/ || echo "Not found"
           echo "Windows artifacts:"
           ls -la artifacts/plugin_epic-windows/ || echo "Not found"
-      
+
       - name: Extract version from tag
         id: version
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-      
+
       - name: Generate Release Notes
         run: |
           cat > RELEASE_NOTES.md << 'EOF'
           # plugin_epic 插件发布
-          
+
           这是一个用于获取 Epic Games 免费游戏的插件。
-          
+
           ## 文件说明
           - Linux: libplugin_epic.so (动态链接库)
           - Windows: plugin_epic.dll (动态链接库) 和 plugin_epic.lib (导入库)
-          
+
           ## 使用说明
           将对应的动态库文件放置到您的机器人插件目录中即可使用。
-          
+
           ### 功能特性
           - 获取 Epic Games 当前免费游戏列表
           - 显示游戏详细信息
           - 支持群聊命令调用
           EOF
-          
+
           if [ -f "CHANGELOG.md" ]; then
             echo "" >> RELEASE_NOTES.md
             echo "## 更新日志" >> RELEASE_NOTES.md
             echo "" >> RELEASE_NOTES.md
             cat CHANGELOG.md >> RELEASE_NOTES.md
           fi
-      
+
       - name: Determine if prerelease
         id: prerelease
         run: |
@@ -157,71 +169,71 @@ jobs:
           else
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Create plugin package
         run: |
           echo "Creating plugin package..."
-          
+
           # 创建插件目录结构
           mkdir -p plugin_package/linux
           mkdir -p plugin_package/windows
-          
+
           # 复制 Linux 插件文件
           cp artifacts/plugin_epic-linux/libplugin_epic.so plugin_package/linux/
-          
+
           # 复制 Windows 插件文件
           cp artifacts/plugin_epic-windows/plugin_epic.dll plugin_package/windows/
           cp artifacts/plugin_epic-windows/plugin_epic.lib plugin_package/windows/
-          
+
           # 添加 README 文件
           cat > plugin_package/README.md << 'EOF'
           # plugin_epic 插件
-          
+
           版本: ${{ github.ref_name }}
-          
+
           ## 安装说明
-          
+
           ### Linux
           将 `linux/libplugin_epic.so` 复制到您的机器人插件目录。
-          
+
           ### Windows
           将 `windows/plugin_epic.dll` 复制到您的机器人插件目录。
-          
+
           ## 使用命令
           在群聊中发送: `epic`
-          
+
           插件会自动获取并显示 Epic Games 当前的免费游戏列表。
           EOF
-          
+
           # 创建压缩包
           cd plugin_package
           zip -r ../plugin_epic-${{ github.ref_name }}.zip .
           cd ..
-          
+
           echo "Plugin package created:"
           ls -la plugin_epic-${{ github.ref_name }}.zip
-          
+
           # 验证压缩包内容
           echo "Verifying package contents:"
           unzip -l plugin_epic-${{ github.ref_name }}.zip
-      
+
       - name: Create individual archives
         run: |
           echo "Creating individual archives..."
-          
+
           # Create Linux archive
           cd artifacts/plugin_epic-linux
           tar -czf ../../plugin_epic-linux-${{ github.ref_name }}.tar.gz libplugin_epic.so
           cd ../..
-          
+
           # Create Windows archive
           cd artifacts/plugin_epic-windows
           zip -r ../../plugin_epic-windows-${{ github.ref_name }}.zip plugin_epic.dll plugin_epic.lib
           cd ../..
-          
+
           echo "Archives created:"
           ls -la plugin_epic-*.tar.gz plugin_epic-*.zip
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -236,7 +248,7 @@ jobs:
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Output release info
         run: |
           echo "Release created successfully!"
