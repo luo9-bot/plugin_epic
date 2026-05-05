@@ -66,27 +66,32 @@ jobs:
           LINUX_ASSET="${{ steps.reg.outputs.linux_asset }}"
           WINDOWS_ASSET="${{ steps.reg.outputs.windows_asset }}"
 
+          # workflow_dispatch 触发时无 release tag，回退到 v{version}
+          [ -z "$TAG" ] && TAG="v${VERSION}"
+
           # 如果 registry.json 不存在或为空，初始化
           if [ ! -s registry.json ]; then
             echo '{"plugins":{},"bot":{"repo":"luoy-oss/luo9_bot","versions":[]}}' > registry.json
           fi
 
-          # 检查插件是否已存在
-          if jq -e ".plugins.\"$CRATE_NAME\"" registry.json > /dev/null 2>&1; then
+          # 检查插件是否已存在（使用 --arg 绑定变量，避免下划线等特殊字符被 jq 误解）
+          if jq --arg name "$CRATE_NAME" -e '.plugins[$name]' registry.json > /dev/null 2>&1; then
             # 插件已存在，检查版本是否重复
-            EXISTS=$(jq ".plugins.\"$CRATE_NAME\".versions | map(select(.version == \"$VERSION\")) | length" registry.json)
+            EXISTS=$(jq --arg name "$CRATE_NAME" --arg ver "$VERSION" '.plugins[$name].versions | map(select(.version == $ver)) | length' registry.json)
             if [ "$EXISTS" -gt 0 ]; then
               echo "版本 $VERSION 已存在，跳过"
               exit 0
             fi
 
             # 在已有插件的 versions 数组头部插入新版本
-            jq ".plugins.\"$CRATE_NAME\".versions = [{\"version\":\"$VERSION\",\"tag\":\"$TAG\",\"sdk_version\":\"$SDK_VERSION\",\"assets\":{\"windows-x86_64\":\"$WINDOWS_ASSET\",\"linux-x86_64\":\"$LINUX_ASSET\"}}] + .plugins.\"$CRATE_NAME\".versions" registry.json > tmp.json
+            jq --arg name "$CRATE_NAME" --arg ver "$VERSION" --arg tag "$TAG" --arg sdk "$SDK_VERSION" --arg win "$WINDOWS_ASSET" --arg lin "$LINUX_ASSET" \
+              '.plugins[$name].versions = [{"version":$ver,"tag":$tag,"sdk_version":$sdk,"assets":{"windows-x86_64":$win,"linux-x86_64":$lin}}] + .plugins[$name].versions' registry.json > tmp.json
             mv tmp.json registry.json
             echo "action=updated" >> $GITHUB_OUTPUT
           else
             # 添加新插件
-            jq ".plugins.\"$CRATE_NAME\" = {\"description\":\"$DESCRIPTION\",\"repo\":\"$REPO\",\"config_files\":[],\"versions\":[{\"version\":\"$VERSION\",\"tag\":\"$TAG\",\"sdk_version\":\"$SDK_VERSION\",\"assets\":{\"windows-x86_64\":\"$WINDOWS_ASSET\",\"linux-x86_64\":\"$LINUX_ASSET\"}}]}" registry.json > tmp.json
+            jq --arg name "$CRATE_NAME" --arg desc "$DESCRIPTION" --arg repo "$REPO" --arg ver "$VERSION" --arg tag "$TAG" --arg sdk "$SDK_VERSION" --arg win "$WINDOWS_ASSET" --arg lin "$LINUX_ASSET" \
+              '.plugins[$name] = {"description":$desc,"repo":$repo,"config_files":[],"versions":[{"version":$ver,"tag":$tag,"sdk_version":$sdk,"assets":{"windows-x86_64":$win,"linux-x86_64":$lin}}]}' registry.json > tmp.json
             mv tmp.json registry.json
             echo "action=added" >> $GITHUB_OUTPUT
           fi
