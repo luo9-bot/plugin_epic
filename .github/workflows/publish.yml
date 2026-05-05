@@ -51,6 +51,7 @@ jobs:
           git clone https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/luo9-bot/registry.git registry
 
       - name: 更新注册表
+        id: registry
         run: |
           cd registry
 
@@ -130,8 +131,8 @@ jobs:
           | 仓库 | [${{ github.repository }}](https://github.com/${{ github.repository }}) |
 
           ### 下载地址
-          - Linux: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/${{ steps.reg.outputs.linux_asset }}
-          - Windows: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/${{ steps.reg.outputs.windows_asset }}
+          - Linux: https://github.com/${{ github.repository }}/releases/download/${{ steps.registry.outputs.tag }}/${{ steps.reg.outputs.linux_asset }}
+          - Windows: https://github.com/${{ github.repository }}/releases/download/${{ steps.registry.outputs.tag }}/${{ steps.reg.outputs.windows_asset }}
           "
           else
             TITLE="publish: ${CRATE_NAME} v${VERSION}"
