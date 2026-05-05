@@ -1,7 +1,8 @@
 [package]
 name = "plugin_epic"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2024"
+description = "Epic Games 免费游戏查询与提醒"
 
 [lib]
 crate-type = ["cdylib"]
