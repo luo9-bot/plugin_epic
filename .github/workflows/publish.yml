@@ -98,6 +98,7 @@ jobs:
 
           # 验证 JSON 有效性
           jq empty registry.json
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: 提交 PR
         env:
