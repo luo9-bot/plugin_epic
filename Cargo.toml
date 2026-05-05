@@ -4,6 +4,9 @@ version = "0.3.0"
 edition = "2024"
 description = "Epic Games 免费游戏查询与提醒"
 
+[package.metadata]
+tags = ["game"]
+
 [lib]
 crate-type = ["cdylib"]
 

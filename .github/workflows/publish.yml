@@ -67,9 +67,6 @@ jobs:
           LINUX_ASSET="${{ steps.reg.outputs.linux_asset }}"
           WINDOWS_ASSET="${{ steps.reg.outputs.windows_asset }}"
 
-          # workflow_dispatch 触发时无 release tag，回退到 v{version}
-          [ -z "$TAG" ] && TAG="v${VERSION}"
-
           # 如果 registry.json 不存在或为空，初始化
           if [ ! -s registry.json ]; then
             echo '{"plugins":{},"bot":{"repo":"luoy-oss/luo9_bot","versions":[]}}' > registry.json
@@ -99,7 +96,6 @@ jobs:
 
           # 验证 JSON 有效性
           jq empty registry.json
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: 提交 PR
         env:
@@ -109,7 +105,18 @@ jobs:
           BRANCH="${{ steps.reg.outputs.branch }}"
           CRATE_NAME="${{ steps.meta.outputs.crate_name }}"
           VERSION="${{ steps.meta.outputs.version }}"
-          ACTION="${{ steps.action.outputs.action }}"
+          TAG="${{ github.event.release.tag_name }}"
+          ACTION="${{ steps.registry.outputs.action }}"
+          LINUX_ASSET="${{ steps.reg.outputs.linux_asset }}"
+          WINDOWS_ASSET="${{ steps.reg.outputs.windows_asset }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
+
+          # tag 为空时指向 latest release
+          if [ -n "$TAG" ]; then
+            DOWNLOAD_URL="${REPO_URL}/releases/download/${TAG}"
+          else
+            DOWNLOAD_URL="${REPO_URL}/releases/latest/download"
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -128,11 +135,11 @@ jobs:
           | 版本 | v${VERSION} |
           | 说明 | ${{ steps.meta.outputs.description }} |
           | SDK | v${{ steps.meta.outputs.sdk_version }} |
-          | 仓库 | [${{ github.repository }}](https://github.com/${{ github.repository }}) |
+          | 仓库 | [${{ github.repository }}](${REPO_URL}) |
 
           ### 下载地址
-          - Linux: https://github.com/${{ github.repository }}/releases/download/${{ steps.registry.outputs.tag }}/${{ steps.reg.outputs.linux_asset }}
-          - Windows: https://github.com/${{ github.repository }}/releases/download/${{ steps.registry.outputs.tag }}/${{ steps.reg.outputs.windows_asset }}
+          - Linux: ${DOWNLOAD_URL}/${LINUX_ASSET}
+          - Windows: ${DOWNLOAD_URL}/${WINDOWS_ASSET}
           "
           else
             TITLE="publish: ${CRATE_NAME} v${VERSION}"
